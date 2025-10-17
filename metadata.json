@@ -1,0 +1,8 @@
+{
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "name": "ResiboKo Scanner",
+  "description": " A financial web app that scans receipts and documents daily expenses."
+}
