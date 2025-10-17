@@ -67,43 +67,60 @@ export const analyzeReceipt = async (imageFile: File): Promise<ReceiptData> => {
 };
 
 export const analyzeTransactionFromVoice = async (audioFile: File): Promise<ReceiptData> => {
-    const model = 'gemini-2.5-flash';
+    try {
+        const model = 'gemini-2.5-flash';
 
-    const audioPart = await fileToGenerativePart(audioFile);
-    
-    const today = new Date().toISOString().slice(0, 10);
+        console.log('Starting voice analysis with file:', audioFile.name, audioFile.type, audioFile.size);
 
-    const prompt = `Analyze the following audio and extract the transaction details. Today's date is ${today}. For the category, choose the most appropriate one from this list: ${categories.join(', ')}. If any information is not found, return null for that field.`;
+        const audioPart = await fileToGenerativePart(audioFile);
 
-    const response = await ai.models.generateContent({
-        model: model,
-        contents: { parts: [{ text: prompt }, audioPart] },
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    transaction_name: { type: Type.STRING },
-                    total_amount: { type: Type.NUMBER },
-                    transaction_date: { type: Type.STRING, description: `The date in YYYY-MM-DD format. If the user says 'today', use ${today}.` },
-                    category: { type: Type.STRING, description: `Must be one of: ${categories.join(', ')}.` },
+        const today = new Date().toISOString().slice(0, 10);
+
+        const prompt = `Analyze the following audio and extract the transaction details. Today's date is ${today}. For the category, choose the most appropriate one from this list: ${categories.join(', ')}. If any information is not found, return null for that field. Please listen carefully to extract: transaction name, amount in pesos, date (or use today if not specified), and category.`;
+
+        console.log('Sending request to Gemini API...');
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: { parts: [{ text: prompt }, audioPart] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        transaction_name: { type: Type.STRING, nullable: true },
+                        total_amount: { type: Type.NUMBER, nullable: true },
+                        transaction_date: { type: Type.STRING, description: `The date in YYYY-MM-DD format. If the user says 'today', use ${today}.`, nullable: true },
+                        category: { type: Type.STRING, description: `Must be one of: ${categories.join(', ')}.`, nullable: true },
+                    },
                 },
             },
-        },
-    });
+        });
 
-    const jsonText = response.text.trim();
-    const data = JSON.parse(jsonText) as ReceiptData;
-    
-    // Validate and clean up data
-    const validatedData: ReceiptData = {
-        transaction_name: data.transaction_name || null,
-        total_amount: typeof data.total_amount === 'number' ? data.total_amount : null,
-        transaction_date: data.transaction_date || today,
-        category: data.category && categories.includes(data.category) ? data.category : 'Other',
-    };
-  
-    return validatedData;
+        console.log('Received response from Gemini API');
+        const jsonText = response.text.trim();
+        console.log('Response text:', jsonText);
+
+        const data = JSON.parse(jsonText) as ReceiptData;
+
+        // Validate and clean up data
+        const validatedData: ReceiptData = {
+            transaction_name: data.transaction_name || null,
+            total_amount: typeof data.total_amount === 'number' ? data.total_amount : null,
+            transaction_date: data.transaction_date || today,
+            category: data.category && categories.includes(data.category) ? data.category : 'Other',
+        };
+
+        console.log('Validated data:', validatedData);
+        return validatedData;
+    } catch (error) {
+        console.error('Error in analyzeTransactionFromVoice:', error);
+        if (error instanceof Error) {
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+        }
+        throw error;
+    }
 };
 
 const formatTransactionsForAI = (transactions: SavedReceiptData[]): string => {

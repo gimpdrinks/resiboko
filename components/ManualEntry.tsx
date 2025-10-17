@@ -48,10 +48,15 @@ const ManualEntry: React.FC<ManualEntryProps> = ({ onClose, onSave }) => {
         const audioFile = new File([audioBlob], "recording.webm", { type: "audio/webm" });
         audioChunksRef.current = [];
         try {
+            console.log('Audio file size:', audioBlob.size, 'bytes');
+            console.log('Audio file type:', audioFile.type);
             const result = await analyzeTransactionFromVoice(audioFile);
+            console.log('Voice analysis result:', result);
             handleVoiceData(result);
         } catch (err) {
-            console.error(err);
+            console.error('Voice analysis error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            console.error('Error details:', errorMessage);
             setError("Sorry, I couldn't understand that. Please try again or enter manually.");
         } finally {
             setIsProcessing(false);
