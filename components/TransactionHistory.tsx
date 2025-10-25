@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { SavedReceiptData } from '../types';
 import { TrashIcon } from './icons/TrashIcon';
+import { EditIcon } from './icons/EditIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
 import { SyncIcon } from './icons/SyncIcon';
@@ -9,6 +10,7 @@ import Spinner from './Spinner';
 interface TransactionHistoryProps {
   receipts: SavedReceiptData[];
   onDelete: (id: string) => void;
+  onEdit: (transaction: SavedReceiptData) => void;
 }
 
 type FilterType = 'Daily' | 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly' | 'All';
@@ -35,9 +37,11 @@ const getQuarterRange = (date: Date) => {
     return { start, end };
 }
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ receipts, onDelete }) => {
-  const [activeFilter, setActiveFilter] = useState<FilterType>('All');
+const TransactionHistory: React.FC<TransactionHistoryProps> = ({ receipts, onDelete, onEdit }) => {
+  const [activeFilter, setActiveFilter] = useState<FilterType>('Daily');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced'>('idle');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const categoryColors: { [key: string]: string } = {
     "Food & Drink": "bg-red-100 text-red-800",
@@ -48,13 +52,14 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ receipts, onDel
     "Entertainment": "bg-pink-100 text-pink-800",
     "Health & Wellness": "bg-teal-100 text-teal-800",
     "Travel": "bg-indigo-100 text-indigo-800",
+    "Rent": "bg-orange-100 text-orange-800",
     "Other": "bg-slate-100 text-slate-800",
     "Uncategorized": "bg-gray-100 text-gray-800",
   };
   
   const formatCurrency = (amount: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
   
-  const { filteredData, periodTitle } = useMemo(() => {
+  const { filteredData, periodTitle, totalItems } = useMemo(() => {
     const now = new Date();
     let filtered = receipts;
     let title = "All Transactions";
@@ -92,20 +97,37 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ receipts, onDel
       default:
         break;
     }
-    
+
     if (activeFilter !== 'All') {
         const summary = filtered.reduce((acc, receipt) => {
             const category = receipt.category || 'Uncategorized';
             acc[category] = (acc[category] || 0) + (receipt.total_amount || 0);
             return acc;
         }, {} as { [key: string]: number });
-        
+
         const summaryArray = Object.entries(summary).map(([category, total]) => ({ category, total }));
-        return { filteredData: summaryArray, periodTitle: title };
+        return { filteredData: summaryArray, periodTitle: title, totalItems: summaryArray.length };
     }
 
-    return { filteredData: filtered, periodTitle: title };
+    return { filteredData: filtered, periodTitle: title, totalItems: filtered.length };
   }, [receipts, activeFilter]);
+
+  // Pagination logic for 'All' filter
+  const paginatedData = useMemo(() => {
+    if (activeFilter === 'All') {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      return (filteredData as SavedReceiptData[]).slice(startIndex, endIndex);
+    }
+    return filteredData;
+  }, [filteredData, currentPage, activeFilter]);
+
+  const totalPages = activeFilter === 'All' ? Math.ceil(totalItems / itemsPerPage) : 1;
+
+  // Reset to page 1 when filter changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter]);
   
   const handleSync = async () => {
     setSyncStatus('syncing');
@@ -224,36 +246,71 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ receipts, onDel
           {filteredData.length === 0 ? (
             <p className="text-slate-500 text-center py-8">No transactions found for this period.</p>
           ) : (
-            <ul className="divide-y divide-slate-200">
-              {activeFilter === 'All' ? (
-                (filteredData as SavedReceiptData[]).map(receipt => (
-                   <li key={receipt.id} className="flex items-center justify-between py-4">
-                    <div className="flex-grow">
-                      <p className="font-semibold text-slate-800">{receipt.transaction_name}</p>
-                      <p className="text-sm text-slate-500">{receipt.transaction_date}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="font-semibold text-green-600 text-right">{formatCurrency(receipt.total_amount || 0)}</p>
-                        <p className={`text-xs font-medium px-2 py-0.5 rounded-full text-right ml-auto w-fit ${categoryColors[receipt.category || 'Other'] || categoryColors['Other']}`}>
-                            {receipt.category}
-                        </p>
+            <>
+              <ul className="divide-y divide-slate-200">
+                {activeFilter === 'All' ? (
+                  (paginatedData as SavedReceiptData[]).map(receipt => (
+                     <li key={receipt.id} className="flex items-center justify-between py-4">
+                      <div className="flex-grow">
+                        <p className="font-semibold text-slate-800">{receipt.transaction_name}</p>
+                        <p className="text-sm text-slate-500">{receipt.transaction_date}</p>
                       </div>
-                      <button onClick={() => onDelete(receipt.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" aria-label="Delete transaction">
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </li>
-                ))
-              ) : (
-                 (filteredData as { category: string; total: number }[]).map(({ category, total }) => (
-                  <li key={category} className="flex items-center justify-between py-3">
-                    <span className={`text-sm font-semibold px-2 py-1 rounded-full ${categoryColors[category] || categoryColors['Other']}`}>{category}</span>
-                    <span className="font-bold text-slate-800">{formatCurrency(total)}</span>
-                  </li>
-                ))
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <p className="font-semibold text-green-600 text-right">{formatCurrency(receipt.total_amount || 0)}</p>
+                          <p className={`text-xs font-medium px-2 py-0.5 rounded-full text-right ml-auto w-fit ${categoryColors[receipt.category || 'Other'] || categoryColors['Other']}`}>
+                              {receipt.category}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => onEdit(receipt)} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-colors" aria-label="Edit transaction">
+                            <EditIcon className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => onDelete(receipt.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" aria-label="Delete transaction">
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))
+                ) : (
+                   (paginatedData as { category: string; total: number }[]).map(({ category, total }) => (
+                    <li key={category} className="flex items-center justify-between py-3">
+                      <span className={`text-sm font-semibold px-2 py-1 rounded-full ${categoryColors[category] || categoryColors['Other']}`}>{category}</span>
+                      <span className="font-bold text-slate-800">{formatCurrency(total)}</span>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              {/* Pagination Controls - Only show for 'All' filter */}
+              {activeFilter === 'All' && totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+                  <p className="text-sm text-slate-600">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} transactions
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-3 py-1 text-sm font-medium text-slate-700">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm font-medium rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               )}
-            </ul>
+            </>
           )}
         </div>
       )}

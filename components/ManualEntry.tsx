@@ -12,7 +12,7 @@ interface ManualEntryProps {
 
 const categories = [
     "Food & Drink", "Groceries", "Transportation", "Shopping", "Utilities",
-    "Entertainment", "Health & Wellness", "Travel", "Other"
+    "Entertainment", "Health & Wellness", "Travel", "Rent", "Other"
 ];
 
 const ManualEntry: React.FC<ManualEntryProps> = ({ onClose, onSave }) => {

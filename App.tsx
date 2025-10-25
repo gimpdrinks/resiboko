@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 // --- NEW: Import Firestore functions ---
-import { collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, updateDoc } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 // --- NEW: Import both 'auth' and 'firestore' ---
 import { auth, firestore } from './firebaseConfig';
@@ -14,6 +14,7 @@ import ManualEntry from './components/ManualEntry';
 import CameraCapture from './components/CameraCapture';
 import TransactionHistory from './components/TransactionHistory';
 import AIAnalytics from './components/AIAnalytics';
+import EditTransaction from './components/EditTransaction';
 import Spinner from './components/Spinner';
 import { CameraIcon } from './components/icons/CameraIcon';
 import { PlusCircleIcon } from './components/icons/PlusCircleIcon';
@@ -26,6 +27,7 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [showManualEntry, setShowManualEntry] = useState<boolean>(false);
     const [showCamera, setShowCamera] = useState<boolean>(false);
+    const [editingTransaction, setEditingTransaction] = useState<SavedReceiptData | null>(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -156,6 +158,22 @@ const App: React.FC = () => {
         }
     };
 
+    // --- NEW: handleEditReceipt updates a receipt in Firestore ---
+    const handleEditReceipt = async (id: string, updatedData: Partial<SavedReceiptData>) => {
+        if (!user) {
+            setError("You must be logged in to edit receipts.");
+            return;
+        }
+        try {
+            const receiptDocRef = doc(firestore, "users", user.uid, "receipts", id);
+            await updateDoc(receiptDocRef, updatedData);
+            setEditingTransaction(null);
+        } catch (error) {
+            console.error("Error updating receipt:", error);
+            setError("Failed to update the receipt. Please try again.");
+        }
+    };
+
     // The rest of your JSX remains the same...
     return (
         <div className="bg-slate-100 min-h-screen font-sans">
@@ -241,9 +259,10 @@ const App: React.FC = () => {
                         )}
                     </div>
                     
-                    <TransactionHistory 
+                    <TransactionHistory
                         receipts={savedReceipts}
                         onDelete={handleDeleteReceipt}
+                        onEdit={setEditingTransaction}
                     />
 
                     <AIAnalytics receipts={savedReceipts} />
@@ -264,6 +283,14 @@ const App: React.FC = () => {
                         setShowCamera(false);
                         handleImageSelect(file);
                     }}
+                />
+            )}
+
+            {editingTransaction && (
+                <EditTransaction
+                    transaction={editingTransaction}
+                    onClose={() => setEditingTransaction(null)}
+                    onSave={handleEditReceipt}
                 />
             )}
         </div>

@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-export const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+export const EditIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="24"
@@ -14,7 +14,7 @@ export const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     strokeLinejoin="round"
     {...props}
   >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.35-4.35" />
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    <path d="m15 5 4 4" />
   </svg>
 );
